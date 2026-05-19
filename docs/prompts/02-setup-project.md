@@ -13,7 +13,7 @@ Nanti document planning nya akan digunakan oleh Programmer atau model yang lebih
 
 ---
 
-submit hasil dari issue.md sebagai github issue baru
+submit hasil dari @issue.md sebagai github issue baru
 
 ---
 
