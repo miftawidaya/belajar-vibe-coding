@@ -30,6 +30,7 @@ export async function registerUser(payload: RegisterPayload): Promise<void> {
       .where(eq(users.email, payload.email))
       .limit(1);
   } catch (error) {
+    console.error("Gagal melakukan pencarian user existing saat registrasi:", error);
     throw new Error("Terjadi kesalahan internal");
   }
 
@@ -49,6 +50,7 @@ export async function registerUser(payload: RegisterPayload): Promise<void> {
       password: hashedPassword,
     });
   } catch (error) {
+    console.error("Gagal menyimpan user baru saat registrasi:", error);
     throw new Error("Terjadi kesalahan internal");
   }
 }
@@ -71,6 +73,7 @@ export async function loginUser(payload: LoginPayload): Promise<string> {
       .where(eq(users.email, payload.email))
       .limit(1);
   } catch (error) {
+    console.error("Gagal mencari user saat login:", error);
     throw new Error("Terjadi kesalahan internal");
   }
 
@@ -95,6 +98,7 @@ export async function loginUser(payload: LoginPayload): Promise<string> {
       userId: user.id,
     });
   } catch (error) {
+    console.error("Gagal menyimpan sesi baru saat login:", error);
     throw new Error("Terjadi kesalahan internal");
   }
 
@@ -131,6 +135,7 @@ export async function getCurrentUser(token: string): Promise<UserProfile> {
       .where(eq(sessions.token, token))
       .limit(1);
   } catch (error) {
+    console.error("Gagal mengambil data user yang sedang login:", error);
     throw new Error("Terjadi kesalahan internal");
   }
 
@@ -154,6 +159,7 @@ export async function logoutUser(token: string): Promise<void> {
       .delete(sessions)
       .where(eq(sessions.token, token));
   } catch (error) {
+    console.error("Gagal menghapus sesi saat logout:", error);
     throw new Error("Terjadi kesalahan internal");
   }
 
@@ -161,6 +167,7 @@ export async function logoutUser(token: string): Promise<void> {
     throw new Error("Unauthorized");
   }
 }
+
 
 
 
