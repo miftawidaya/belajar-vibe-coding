@@ -1,12 +1,15 @@
 import { Elysia } from "elysia";
 import { userRoutes } from "./routes/user-routes";
 
-const app = new Elysia()
+export const app = new Elysia()
   .get("/", () => "Hello World")
-  .use(userRoutes)
-  .listen(3000);
+  .use(userRoutes);
 
-console.log(
-  `Elysia is running at ${app.server?.hostname}:${app.server?.port}`
-);
+if (process.env.NODE_ENV !== "test") {
+  app.listen(3000);
+  console.log(
+    `Elysia is running at ${app.server?.hostname}:${app.server?.port}`
+  );
+}
+
 
