@@ -118,4 +118,22 @@ export async function getCurrentUser(token: string): Promise<UserProfile> {
   return result;
 }
 
+/**
+ * Logs out a user by deleting their active session token from the database.
+ *
+ * @param token The session token from the Authorization header
+ * @throws Error "Unauthorized" if the token is not found or already deleted
+ */
+export async function logoutUser(token: string): Promise<void> {
+  const [result] = await db
+    .delete(sessions)
+    .where(eq(sessions.token, token));
+
+  if (result.affectedRows === 0) {
+    throw new Error("Unauthorized");
+  }
+}
+
+
+
 

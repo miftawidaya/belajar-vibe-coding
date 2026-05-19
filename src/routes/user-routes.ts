@@ -1,9 +1,23 @@
 import { Elysia, t } from "elysia";
-import { registerUser, loginUser, getCurrentUser } from "../services/user-services";
+import { registerUser, loginUser, getCurrentUser, logoutUser } from "../services/user-services";
+
+/**
+ * Extracts the Bearer token from the Authorization header.
+ *
+ * @param authHeader The Authorization header value
+ * @returns The extracted token string
+ * @throws Error "Unauthorized" if the header is missing or format is invalid
+ */
+function extractBearerToken(authHeader: string | undefined): string {
+  if (authHeader === undefined || authHeader.startsWith("Bearer ") === false) {
+    throw new Error("Unauthorized");
+  }
+  return authHeader.substring(7);
+}
 
 /**
  * Route group for user-related endpoints.
- * Handles registering new users, logging in, and retrieving active session profile.
+ * Handles registering new users, logging in, retrieving active session profile, and logging out.
  */
 export const userRoutes = new Elysia()
   .post(
@@ -51,12 +65,7 @@ export const userRoutes = new Elysia()
     "/api/users/current",
     async ({ headers, set }) => {
       try {
-        const authHeader = headers["authorization"];
-        if (authHeader === undefined || authHeader.startsWith("Bearer ") === false) {
-          throw new Error("Unauthorized");
-        }
-
-        const token = authHeader.substring(7);
+        const token = extractBearerToken(headers["authorization"]);
         const user = await getCurrentUser(token);
         return { data: user };
       } catch (error) {
@@ -66,6 +75,23 @@ export const userRoutes = new Elysia()
         return { error: message };
       }
     }
+  )
+  .delete(
+    "/api/users/logout",
+    async ({ headers, set }) => {
+      try {
+        const token = extractBearerToken(headers["authorization"]);
+        await logoutUser(token);
+        return { data: "OK" };
+      } catch (error) {
+        set.status = 401;
+        const message =
+          error instanceof Error ? error.message : "Unauthorized";
+        return { error: message };
+      }
+    }
   );
+
+
 
 
