@@ -5,6 +5,15 @@ export default defineConfig({
   schema: "./src/db/schema.ts",
   dialect: "mysql",
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    host: "127.0.0.1",
+    port: 3306,
+    user: "miftawidaya",
+    password: "password",
+    database: "belajar_vibe_coding",
   },
 });
+
+
+
+
+
