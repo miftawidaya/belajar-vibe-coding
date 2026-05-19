@@ -1,79 +1,36 @@
-# Bug: Registrasi User Tidak Memvalidasi Panjang Input dan Mengekspos Detail Error Internal
+# Task: Pembuatan Unit Test Keseluruhan API
 
-## Deskripsi Bug
+Dokumen ini berisi perencanaan implementasi pengujian otomatis (*unit test*) untuk semua endpoint API menggunakan `bun test`.
 
-Saat melakukan registrasi user baru melalui endpoint `POST /api/users` dengan field `name` yang melebihi 255 karakter (batas kolom `varchar(255)` di database), aplikasi mengembalikan respons `400 Bad Request` tetapi dengan pesan error yang mengandung:
+## Aturan & Ketentuan Umum
+1. **Lokasi File:** Tempatkan seluruh berkas pengujian di dalam folder `tests` di *root directory*.
+2. **Framework:** Gunakan modul standar bawaan Bun yaitu `bun:test` (`describe`, `it`, `expect`, `beforeEach`, dsb.).
+3. **Isolasi Data (Penting):** Sebelum mengeksekusi masing-masing pengujian (*per skenario*), pastikan untuk selalu **menghapus data terkait** di database (seperti tabel `users` dan `sessions`) agar state pengujian selalu konsisten dan tidak saling mempengaruhi.
 
-- Query SQL lengkap (`insert into users ...`)
-- Seluruh parameter input termasuk **hash password** (`$2b$10$...`)
+## Daftar Skenario Pengujian API
 
-Ini merupakan kerentanan keamanan karena mengekspos struktur database dan data sensitif kepada pengguna akhir.
+Berikut adalah skenario yang harus diuji untuk masing-masing API. Harap implementasikan pengujian berdasarkan poin-poin berikut tanpa harus terpaku pada langkah teknis yang kaku.
 
-## Langkah Reproduksi
+### 1. Register API (`POST /api/users`)
+- [ ] **Sukses:** Mengirimkan data registrasi dengan format yang valid (`name`, `email`, `password` wajar) mengembalikan status sukses tanpa error.
+- [ ] **Gagal (Email Duplikat):** Mencoba mendaftarkan user dengan `email` yang sudah ada di database ditolak secara sistem.
+- [ ] **Gagal (Validasi Payload):** Mengirim field (seperti nama atau email) yang terlalu panjang (>255 karakter) atau format JSON tidak lengkap langsung ditolak.
 
-1. Jalankan aplikasi (`bun run src/index.ts`).
-2. Kirim request berikut:
-   ```bash
-   curl -X POST http://localhost:3000/api/users \
-     -H "Content-Type: application/json" \
-     -d '{"name": "A<diulang 300 kali>", "email": "test@localhost", "password": "rahasia"}'
-   ```
-3. Perhatikan respons error yang mengekspos query SQL dan hash password.
+### 2. Login API (`POST /api/users/login`)
+- [ ] **Sukses:** Login menggunakan email dan password yang benar mengembalikan token UUID.
+- [ ] **Gagal (Password Salah):** Login dengan email yang terdaftar namun password tidak cocok harus ditolak.
+- [ ] **Gagal (User Tidak Ada):** Login dengan email yang sama sekali tidak ada di dalam database mengembalikan pesan kesalahan kredensial.
+- [ ] **Gagal (Validasi Payload):** Payload login dengan field >255 karakter atau kosong harus ditolak.
 
-## Akar Masalah
+### 3. Get Current User API (`POST /api/users/current`)
+- [ ] **Sukses:** Meminta profil dengan melampirkan header `Authorization: Bearer <token_valid>` akan mengembalikan detail user terkait (nama, email, ID) tanpa *password*.
+- [ ] **Gagal (Token Kosong):** Mengirim permintaan profil tanpa header *Authorization* akan diblokir dengan pesan "Unauthorized".
+- [ ] **Gagal (Token Salah/Asal):** Menggunakan format token asal atau token yang tidak valid di database akan mengembalikan status "Unauthorized".
 
-1. **Tidak ada validasi panjang input di layer route.** Validasi body request Elysia hanya memeriksa tipe data (`t.String()`), tetapi tidak membatasi panjang maksimum karakter.
-2. **Error dari database diteruskan mentah ke klien.** Pada `catch` block di route handler, `error.message` dari Drizzle/MySQL langsung dikembalikan tanpa disaring.
+### 4. Logout API (`DELETE /api/users/logout`)
+- [ ] **Sukses:** Mengirim token valid akan berhasil melogout user, dan token terhapus dari basis data (pastikan sesi tersebut benar-benar hilang).
+- [ ] **Gagal (Token Kosong):** Mengakses endpoint tanpa header *Authorization* akan ditolak.
+- [ ] **Gagal (Logout Berulang):** Mengirim request logout menggunakan token yang sudah kedaluwarsa atau sudah dilakukan logout sebelumnya harus mengembalikan error "Unauthorized".
 
-## Tahapan Perbaikan
-
-### 1. Tambahkan Validasi Panjang Input di Layer Route
-
-**Target File:** `src/routes/user-routes.ts`
-
-Pada endpoint `POST /api/users`, ubah skema validasi body request agar membatasi panjang maksimum setiap field string. Gunakan opsi `maxLength` dari Elysia `t.String()`.
-
-Contoh perubahan:
-```typescript
-body: t.Object({
-  name: t.String({ maxLength: 255 }),
-  email: t.String({ maxLength: 255 }),
-  password: t.String({ maxLength: 255 }),
-})
-```
-
-Lakukan hal yang sama untuk endpoint `POST /api/users/login`:
-```typescript
-body: t.Object({
-  email: t.String({ maxLength: 255 }),
-  password: t.String({ maxLength: 255 }),
-})
-```
-
-### 2. Perbaiki Error Handling agar Tidak Mengekspos Detail Internal
-
-**Target File:** `src/services/user-services.ts`
-
-Pada fungsi `registerUser`, bungkus operasi `db.insert(...)` dengan `try...catch` terpisah. Jika terjadi error dari database (misalnya karena constraint violation atau alasan lain yang tidak terduga), tangkap error tersebut dan lemparkan kembali dengan pesan generik yang aman, bukan pesan asli dari database.
-
-Contoh:
-```typescript
-try {
-  await db.insert(users).values({
-    name: payload.name,
-    email: payload.email,
-    password: hashedPassword,
-  });
-} catch {
-  throw new Error("Terjadi kesalahan internal");
-}
-```
-
-Terapkan pola yang sama pada fungsi `loginUser` untuk operasi `db.insert(sessions)` dan fungsi-fungsi service lainnya yang melakukan operasi database.
-
-## Kriteria Penerimaan (Acceptance Criteria)
-
-- Registrasi dengan field `name`, `email`, atau `password` yang melebihi 255 karakter langsung ditolak oleh validasi Elysia **sebelum** menyentuh database, dengan pesan error validasi standar (bukan query SQL).
-- Jika terjadi error tak terduga dari database, respons yang dikembalikan ke klien berisi pesan generik `"Terjadi kesalahan internal"`, **bukan** detail query SQL atau data sensitif.
-- Semua endpoint yang menerima input string (`POST /api/users`, `POST /api/users/login`) harus memiliki batasan `maxLength` yang sesuai.
-- Kode tetap mematuhi standar TypeScript strict mode (tanpa `any`).
+---
+*Instruksi untuk Implementator: Silakan tulis kode test untuk membuktikan skenario di atas dapat dipenuhi oleh sistem saat ini. Struktur *asserts* atau cara me-request server diserahkan kepada Anda.*
