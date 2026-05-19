@@ -1,9 +1,9 @@
 import { Elysia, t } from "elysia";
-import { registerUser, loginUser, getCurrentUser } from "../services/user-services";
+import { registerUser, loginUser, getCurrentUser, logoutUser } from "../services/user-services";
 
 /**
  * Route group for user-related endpoints.
- * Handles registering new users, logging in, and retrieving active session profile.
+ * Handles registering new users, logging in, retrieving active session profile, and logging out.
  */
 export const userRoutes = new Elysia()
   .post(
@@ -66,6 +66,27 @@ export const userRoutes = new Elysia()
         return { error: message };
       }
     }
+  )
+  .delete(
+    "/api/users/logout",
+    async ({ headers, set }) => {
+      try {
+        const authHeader = headers["authorization"];
+        if (authHeader === undefined || authHeader.startsWith("Bearer ") === false) {
+          throw new Error("Unauthorized");
+        }
+
+        const token = authHeader.substring(7);
+        await logoutUser(token);
+        return { data: "OK" };
+      } catch (error) {
+        set.status = 401;
+        const message =
+          error instanceof Error ? error.message : "Unauthorized";
+        return { error: message };
+      }
+    }
   );
+
 
 
