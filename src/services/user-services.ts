@@ -83,3 +83,39 @@ export async function loginUser(payload: LoginPayload): Promise<string> {
   return token;
 }
 
+export type UserProfile = Readonly<{
+  id: number;
+  name: string;
+  email: string;
+  createdAt: Date | null;
+}>;
+
+/**
+ * Retrieves the currently logged-in user profile based on the session token.
+ * Validates the session token in the database and returns the associated user's details.
+ *
+ * @param token The session token from the Authorization header
+ * @returns The user profile details (id, name, email, createdAt)
+ * @throws Error "Unauthorized" if the token is invalid or session is not found
+ */
+export async function getCurrentUser(token: string): Promise<UserProfile> {
+  const [result] = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      createdAt: users.createdAt,
+    })
+    .from(sessions)
+    .innerJoin(users, eq(sessions.userId, users.id))
+    .where(eq(sessions.token, token))
+    .limit(1);
+
+  if (result === undefined) {
+    throw new Error("Unauthorized");
+  }
+
+  return result;
+}
+
+

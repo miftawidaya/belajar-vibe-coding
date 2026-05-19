@@ -1,60 +1,51 @@
-# Task: Implementasi Fitur Login User (Backend)
+# Task: Implementasi Fitur Get Current User (Backend)
 
-Dokumen ini berisi panduan dan tahapan implementasi fitur login user. Silakan ikuti langkah-langkah di bawah ini secara berurutan.
+Dokumen ini berisi panduan dan tahapan implementasi fitur untuk mengambil data user yang sedang login saat ini berdasarkan token sesi. Silakan ikuti langkah-langkah di bawah ini secara berurutan.
 
-## 1. Pembuatan Skema Database (Tabel Sessions)
-
-**Target File:** `src/db/schema.ts`
-
-Tambahkan definisi tabel `sessions` menggunakan Drizzle ORM dengan spesifikasi berikut:
-
-- `id`: integer, auto increment, primary key
-- `token`: varchar(255), not null (akan diisi dengan UUID untuk representasi sesi login user)
-- `user_id`: integer (sebagai referensi/Foreign Key ke tabel `users`)
-- `created_at`: timestamp, dengan nilai default `current_timestamp`
-
-*Catatan:* Setelah mendefinisikan skema, pastikan untuk menjalankan perintah sinkronisasi database dari Drizzle (misalnya `bun run db:push`) agar tabel benar-benar dibuat di dalam database MySQL.
-
-## 2. Pembuatan Layer Service (Logika Bisnis)
+## 1. Pembuatan Layer Service (Logika Bisnis)
 
 **Target File:** `src/services/user-services.ts`
 
-Di dalam file ini, buat sebuah fungsi baru (misalnya: `loginUser(payload)`). Tugas dari fungsi ini adalah:
+Di dalam file ini, buat sebuah fungsi baru (misalnya: `getCurrentUser(token: string)`). Tugas dari fungsi ini adalah:
 
-1. **Pencarian Data User:** Lakukan pencarian di database menggunakan Drizzle pada tabel `users` berdasarkan `email` yang diberikan di payload.
-2. **Validasi Kredensial:**
-   - Jika user dengan email tersebut tidak ditemukan, langsung lemparkan error dengan pesan `"Email atau password salah"`.
-   - Jika user ditemukan, lakukan verifikasi password menggunakan fungsi bawaan `Bun.password.verify` (atau utilitas `bcrypt` yang sesuai) untuk membandingkan password dari request dengan password hash di database.
-   - Jika password tidak cocok, lemparkan error dengan pesan `"Email atau password salah"`.
-3. **Pembuatan Token (UUID):** Generate string UUID acak yang unik (bisa menggunakan `crypto.randomUUID()`).
-4. **Penyimpanan Sesi:** Masukkan record baru ke tabel `sessions` yang berisi `token` yang baru dibuat dan `user_id` milik user yang berhasil login.
-5. **Return Value:** Fungsi harus mengembalikan token UUID tersebut.
+1. **Validasi Token di Database:** Lakukan pencarian (query) ke database menggunakan Drizzle pada tabel `sessions` (atau sesuai referensi relasi yang ada) berdasarkan `token` yang diberikan.
+2. **Pengambilan Data Profil User:** Lakukan *join* antara tabel `sessions` dengan tabel `users` (berdasarkan `user_id`), atau ambil data user secara berurutan untuk mendapatkan data diri pemilik sesi tersebut.
+   - *Penting:* Jangan pernah mengembalikan (me-return) field `password` ke luar.
+3. **Validasi Kegagalan:** Jika token tidak valid, kadaluarsa, atau tidak ditemukan di tabel sesi/user, lemparkan error dengan pesan `"Unauthorized"`.
+4. **Return Value:** Jika validasi sukses, fungsi harus mengembalikan objek yang berisi data profil user (`id`, `name`, `email`, `createdAt`).
 
-## 3. Pembuatan Layer Route (Endpoint API)
+## 2. Pembuatan Layer Route (Endpoint API)
 
 **Target File:** `src/routes/user-routes.ts`
 
-Tambahkan routing baru pada instance ElysiaJS yang sudah ada untuk menangani proses login.
+Tambahkan routing baru pada instance ElysiaJS yang sudah ada.
 
-- **Endpoint:** `POST /api/users/login`
-- **Request Body Validation:** Validasi body request agar wajib memiliki `email` (string) dan `password` (string).
+- **Endpoint:** `POST /api/users/current`
+- **Header:** Wajib menyertakan header `Authorization` dengan format `Bearer <token>`.
 - **Tugas Eksekusi:**
-  1. Panggil fungsi `loginUser` dari layer Service menggunakan data body.
-  2. **Jika Sukses:** Kembalikan response JSON berisi token:
+  1. Ambil nilai header `Authorization` dari request yang masuk di Elysia.
+  2. Ekstrak string `<token>` (buang kata "Bearer "). Jika token kosong/tidak ada, lemparkan error "Unauthorized".
+  3. Panggil fungsi `getCurrentUser(token)` dari layer Service.
+  4. **Jika Sukses:** Kembalikan response JSON berupa:
      ```json
      {
-       "data": "<token_uuid_disini>"
+       "data": {
+         "id": 1,
+         "name": "mifta",
+         "email": "mifta@localhost",
+         "created_at": "2026-05-19T00:00:00.000Z"
+       }
      }
      ```
-  3. **Jika Gagal:** Tangkap exception/error yang dilemparkan oleh service, ubah HTTP Status Code menjadi 400 atau 401, dan kembalikan response:
+  5. **Jika Gagal:** Tangkap error, atur HTTP Status Code menjadi 401 (Unauthorized), dan kembalikan response:
      ```json
      {
-       "error": "Email atau password salah"
+       "error": "Unauthorized"
      }
      ```
 
 ## Kriteria Penerimaan (Acceptance Criteria)
 
-- Request POST ke `/api/users/login` dengan akun terdaftar mengembalikan token UUID, dan data token beserta `user_id` tersimpan di tabel `sessions`.
-- Request dengan email yang tidak terdaftar, atau password yang salah mengembalikan JSON `{"error": "Email atau password salah"}`.
-- Menggunakan TypeScript dengan strict mode (tanpa `any`), dan mengisolasi rute (`routes`) dari logika bisnis (`services`) secara teratur.
+- Melakukan request POST ke `/api/users/current` dengan melampirkan header `Authorization: Bearer <token_aktif>` mengembalikan profil user secara utuh kecuali password.
+- Melakukan request POST tanpa header `Authorization` atau token yang tidak valid/salah akan ditolak dan mengembalikan struktur `{"error": "Unauthorized"}`.
+- Implementasi harus menggunakan TypeScript strict mode (tidak memperbolehkan `any`), memisahkan alur logika di `services`, dan memisahkan pengontrol *request/response* di layer `routes`.
