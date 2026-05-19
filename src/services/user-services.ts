@@ -22,11 +22,17 @@ export type LoginPayload = Readonly<{
  * @throws Error if the email is already registered
  */
 export async function registerUser(payload: RegisterPayload): Promise<void> {
-  const existingUser = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, payload.email))
-    .limit(1);
+  let existingUser;
+  try {
+    existingUser = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, payload.email))
+      .limit(1);
+  } catch (error) {
+    console.error("Gagal melakukan pencarian user existing saat registrasi:", error);
+    throw new Error("Terjadi kesalahan internal");
+  }
 
   if (existingUser.length > 0) {
     throw new Error("Email sudah terdaftar");
@@ -37,11 +43,16 @@ export async function registerUser(payload: RegisterPayload): Promise<void> {
     cost: 10,
   });
 
-  await db.insert(users).values({
-    name: payload.name,
-    email: payload.email,
-    password: hashedPassword,
-  });
+  try {
+    await db.insert(users).values({
+      name: payload.name,
+      email: payload.email,
+      password: hashedPassword,
+    });
+  } catch (error) {
+    console.error("Gagal menyimpan user baru saat registrasi:", error);
+    throw new Error("Terjadi kesalahan internal");
+  }
 }
 
 /**
@@ -54,11 +65,17 @@ export async function registerUser(payload: RegisterPayload): Promise<void> {
  * @throws Error if email is not found or password verification fails
  */
 export async function loginUser(payload: LoginPayload): Promise<string> {
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, payload.email))
-    .limit(1);
+  let user;
+  try {
+    [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, payload.email))
+      .limit(1);
+  } catch (error) {
+    console.error("Gagal mencari user saat login:", error);
+    throw new Error("Terjadi kesalahan internal");
+  }
 
   if (user === undefined) {
     throw new Error("Email atau password salah");
@@ -75,10 +92,15 @@ export async function loginUser(payload: LoginPayload): Promise<string> {
 
   const token = crypto.randomUUID();
 
-  await db.insert(sessions).values({
-    token,
-    userId: user.id,
-  });
+  try {
+    await db.insert(sessions).values({
+      token,
+      userId: user.id,
+    });
+  } catch (error) {
+    console.error("Gagal menyimpan sesi baru saat login:", error);
+    throw new Error("Terjadi kesalahan internal");
+  }
 
   return token;
 }
@@ -99,17 +121,23 @@ export type UserProfile = Readonly<{
  * @throws Error "Unauthorized" if the token is invalid or session is not found
  */
 export async function getCurrentUser(token: string): Promise<UserProfile> {
-  const [result] = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      createdAt: users.createdAt,
-    })
-    .from(sessions)
-    .innerJoin(users, eq(sessions.userId, users.id))
-    .where(eq(sessions.token, token))
-    .limit(1);
+  let result;
+  try {
+    [result] = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        createdAt: users.createdAt,
+      })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .where(eq(sessions.token, token))
+      .limit(1);
+  } catch (error) {
+    console.error("Gagal mengambil data user yang sedang login:", error);
+    throw new Error("Terjadi kesalahan internal");
+  }
 
   if (result === undefined) {
     throw new Error("Unauthorized");
@@ -125,14 +153,22 @@ export async function getCurrentUser(token: string): Promise<UserProfile> {
  * @throws Error "Unauthorized" if the token is not found or already deleted
  */
 export async function logoutUser(token: string): Promise<void> {
-  const [result] = await db
-    .delete(sessions)
-    .where(eq(sessions.token, token));
+  let result;
+  try {
+    [result] = await db
+      .delete(sessions)
+      .where(eq(sessions.token, token));
+  } catch (error) {
+    console.error("Gagal menghapus sesi saat logout:", error);
+    throw new Error("Terjadi kesalahan internal");
+  }
 
   if (result.affectedRows === 0) {
     throw new Error("Unauthorized");
   }
 }
+
+
 
 
 
