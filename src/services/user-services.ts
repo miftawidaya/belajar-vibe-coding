@@ -1,9 +1,14 @@
 import { db } from "../db/db";
-import { users } from "../db/schema";
+import { users, sessions } from "../db/schema";
 import { eq } from "drizzle-orm";
 
 export type RegisterPayload = Readonly<{
   name: string;
+  email: string;
+  password: string;
+}>;
+
+export type LoginPayload = Readonly<{
   email: string;
   password: string;
 }>;
@@ -38,3 +43,43 @@ export async function registerUser(payload: RegisterPayload): Promise<void> {
     password: hashedPassword,
   });
 }
+
+/**
+ * Logs in a user by verifying their email and password.
+ * If successful, generates a UUID session token, records it in the database,
+ * and returns the generated token.
+ *
+ * @param payload The login request credentials
+ * @returns The session token as a string
+ * @throws Error if email is not found or password verification fails
+ */
+export async function loginUser(payload: LoginPayload): Promise<string> {
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, payload.email))
+    .limit(1);
+
+  if (user === undefined) {
+    throw new Error("Email atau password salah");
+  }
+
+  const isPasswordValid = await Bun.password.verify(
+    payload.password,
+    user.password
+  );
+
+  if (isPasswordValid === false) {
+    throw new Error("Email atau password salah");
+  }
+
+  const token = crypto.randomUUID();
+
+  await db.insert(sessions).values({
+    token,
+    userId: user.id,
+  });
+
+  return token;
+}
+
