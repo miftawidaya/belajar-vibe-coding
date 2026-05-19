@@ -45,6 +45,10 @@ Jelaskan tahapan-tahapan yang harus dilakukan untuk mengimplementasikan fitur in
 
 ---
 
+submit hasil dari @issue.md sebagai github issue baru
+
+---
+
 NOTE: Ganti model yang lebih murah, misal Gemini Flash
 
 Implementasikan github issue https://github.com/miftawidaya/belajar-vibe-coding/issues/6
