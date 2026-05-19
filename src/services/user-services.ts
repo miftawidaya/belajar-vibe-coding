@@ -125,18 +125,15 @@ export async function getCurrentUser(token: string): Promise<UserProfile> {
  * @throws Error "Unauthorized" if the token is not found or already deleted
  */
 export async function logoutUser(token: string): Promise<void> {
-  const [session] = await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.token, token))
-    .limit(1);
+  const [result] = await db
+    .delete(sessions)
+    .where(eq(sessions.token, token));
 
-  if (session === undefined) {
+  if (result.affectedRows === 0) {
     throw new Error("Unauthorized");
   }
-
-  await db.delete(sessions).where(eq(sessions.token, token));
 }
+
 
 
 
